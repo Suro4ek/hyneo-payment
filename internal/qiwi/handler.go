@@ -1,14 +1,20 @@
 package qiwi
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"hyneo-payment/internal/give"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,6 +25,10 @@ type handler struct {
 	Give   give.Give
 }
 
+const (
+	urlBill = "https://api.qiwi.com/partner/bill/v1/bills/"
+)
+
 func NewQiwiHandler(client *mysql.Client, log *logging.Logger, give give.Give) handlers.Handler {
 	return &handler{
 		client: client,
@@ -27,8 +37,9 @@ func NewQiwiHandler(client *mysql.Client, log *logging.Logger, give give.Give) h
 	}
 }
 
-func (h *handler) Register(router *gin.Engine) {
+func (h *handler) Register(router *gin.Engine, auth *gin.RouterGroup) {
 	router.POST("/qiwi", h.qiwi)
+	auth.POST("/qiwi", h.bill)
 }
 
 func (h *handler) qiwi(ctx *gin.Context) {
@@ -72,7 +83,7 @@ func (h *handler) qiwi(ctx *gin.Context) {
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
 	invoice_parameters := fmt.Sprintf("%s|%s|%s|%s|%s", dto.Amount_currency, dto.Amount_value, dto.BillId, dto.SiteID, dto.Status_value)
-	hash_request := hmac.New(sha256.New, []byte(method.Method.SECRET_KEY))
+	hash_request := hmac.New(sha256.New, []byte(method.Method.SecretKey))
 	hash_request.Write([]byte(invoice_parameters))
 	if hmac.Equal([]byte(hash), hash_request.Sum(nil)) {
 		go func() {
@@ -86,4 +97,88 @@ func (h *handler) qiwi(ctx *gin.Context) {
 			"error": "bad request",
 		})
 	}
+}
+
+func (h *handler) bill(ctx *gin.Context) {
+	var dto QIWIPay
+	if err := ctx.ShouldBindJSON(&dto); err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
+	var method model.Method
+	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "Qiwi").First(&method).Error
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
+	var item model.Item
+	err = h.client.DB.Model(&model.Item{}).Where("id = ?", dto.Item_id).First(&item).Error
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
+	h.log.Info("item: ", item)
+	h.log.Info("method: ", method)
+	h.log.Info("dto: ", dto)
+	order := model.Order{
+		Username:  dto.Name,
+		ItemId:    int(item.ID),
+		Method:    method.Name,
+		Summa:     item.Price,
+		Status:    "Ожидает оплаты",
+		DateIssue: time.Now(),
+	}
+	err = h.client.DB.Create(&order).Error
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
+	var bearer = "Bearer " + method.Method.SecretKey
+	var jsonData = []byte(`{
+		"amount":{
+			"value": "` + fmt.Sprintf("%d", item.Price) + `",
+			"value": "RUB",
+		},
+		"expirationDateTime": "` + time.Now().Add(time.Hour*72).Format("2025-12-10T09:02:00+03:00") + `",
+	}`)
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, item.ID), bytes.NewBuffer(jsonData))
+
+	// add authorization header to the req
+	req.Header.Add("Authorization", bearer)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("Error on response.\n[ERROR] -", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		log.Println("Error while reading the response bytes:", err)
+		return
+	}
+	h.log.Info("body: ", string(body))
+	var raw map[string]interface{}
+	if er := json.Unmarshal(body, &raw); er != nil {
+		log.Println("Error while unmarshaling the response:", er)
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
+	h.log.Info("raw: ", raw)
+	ctx.Redirect(302, raw["payUrl"].(string))
 }

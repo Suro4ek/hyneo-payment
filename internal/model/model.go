@@ -10,10 +10,10 @@ type Method struct {
 }
 
 type MethodKey struct {
-	ID         uint `gorm:"primarykey"`
-	SECRET_KEY string
-	PUBLIC_KEY string
-	MethodId   int `gorm:"methodId"`
+	ID        uint `gorm:"primarykey"`
+	SecretKey string
+	PublicKey string
+	MethodId  int `gorm:"methodId"`
 }
 
 type Order struct {
@@ -23,14 +23,18 @@ type Order struct {
 	Summa     int
 	DateIssue time.Time
 	ItemId    int `gorm:"itemId"`
-	//items ????
+	Method    string
 }
 
 type Item struct {
-	ID       uint `gorm:"primarykey"`
-	Command  string
-	ServerId int   `gorm:"serverId"`
-	Order    Order `gorm:"foreignKey:itemId"`
+	ID        uint `gorm:"primarykey"`
+	Command   string
+	ServerId  int   `gorm:"serverId"`
+	Order     Order `gorm:"foreignKey:itemId"`
+	Doplata   bool
+	FakePrice int
+	Price     int
+	Active    bool
 }
 
 type Server struct {

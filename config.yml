@@ -4,3 +4,4 @@ mysql:
  user: server_user
  pass: "aDA@8NES)AV5./LY"
  db: site
+secret_key: hyneosecretkey

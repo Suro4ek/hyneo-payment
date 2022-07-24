@@ -2,16 +2,17 @@ package main
 
 import (
 	"context"
+	"github.com/golang-jwt/jwt/v4"
 	"hyneo-payment/internal/config"
 	freekassa "hyneo-payment/internal/free_kassa"
 	"hyneo-payment/internal/getpay"
+	middleware2 "hyneo-payment/internal/middleware"
 	"hyneo-payment/internal/minecraft"
 	"hyneo-payment/internal/qiwi"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorcon/rcon"
 )
 
 func main() {
@@ -19,11 +20,12 @@ func main() {
 	log := logging.GetLogger()
 	cfg := config.GetConfig()
 	client := mysql.NewClient(context.TODO(), 5, cfg.MySQL)
-	rcon.Dial("127.0.0.1:16260", "password")
-	RunServer(client, &log)
+	//token, _ := generateJwtToken(cfg)
+	//fmt.Println(token)
+	RunServer(client, &log, cfg)
 }
 
-func RunServer(client *mysql.Client, log *logging.Logger) {
+func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config) {
 	r := gin.Default()
 	var trusted = make([]string, 0)
 	free_kassa := []string{
@@ -45,15 +47,21 @@ func RunServer(client *mysql.Client, log *logging.Logger) {
 	trusted = append(trusted, getpay_trust...)
 	r.SetTrustedProxies(trusted)
 	give := minecraft.NewGive(client)
-
+	middleware := middleware2.NewMiddleware(config)
+	auth := r.Group("/bill", middleware.Auth())
 	free_kassaHandler := freekassa.NewFreeKassaHandler(client, log, give)
-	free_kassaHandler.Register(r)
+	free_kassaHandler.Register(r, auth)
 
 	getpay_handler := getpay.NewGetPayHandler(client, log, give)
-	getpay_handler.Register(r)
+	getpay_handler.Register(r, auth)
 
 	qiwi_handler := qiwi.NewQiwiHandler(client, log, give)
-	qiwi_handler.Register(r)
+	qiwi_handler.Register(r, auth)
 
 	r.Run(":8080")
+}
+
+func generateJwtToken(cfg *config.Config) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{})
+	return token.SignedString([]byte(cfg.SECRET))
 }

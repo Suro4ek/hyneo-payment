@@ -1,0 +1,1 @@
+time="2022-07-24T14:26:52+09:00" level=info msg="read application config" func="config.go:29" file="hyneo-payment/internal/config.GetConfig.func1()"

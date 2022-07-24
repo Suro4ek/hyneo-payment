@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	MySQL MySQL `yaml:"mysql"`
+	MySQL  MySQL  `yaml:"mysql"`
+	SECRET string `yaml:"secret_key"`
 }
 
 type MySQL struct {
