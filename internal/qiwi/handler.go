@@ -109,25 +109,33 @@ func (h *handler) qiwi(ctx *gin.Context) {
 
 func (h *handler) bill(ctx *gin.Context) {
 	var dto QIWIPay
-	if err := ctx.ShouldBindJSON(&dto); err != nil {
+	if err := ctx.ShouldBind(&dto); err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
+			"error": "error form data",
 		})
 		return
 	}
 	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "Qiwi").First(&method).Error
+	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "Qiwi").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
+			"error": "error get method",
 		})
 		return
 	}
+	// var methodKey model.MethodKey
+	// err = h.client.DB.Model(&model.MethodKey{}).Where("methodId = ?", method.ID).First(&methodKey).Error
+	// if err != nil {
+	// 	ctx.AbortWithStatusJSON(400, gin.H{
+	// 		"error": "error get method key",
+	// 	})
+	// 	return
+	// }
 	var item model.Item
 	err = h.client.DB.Model(&model.Item{}).Where("id = ?", dto.Item_id).First(&item).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
+			"error": "error get item",
 		})
 		return
 	}
@@ -152,7 +160,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	err = h.client.DB.Create(&order).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
+			"error": "error create order",
 		})
 		return
 	}
@@ -162,10 +170,14 @@ func (h *handler) bill(ctx *gin.Context) {
 			"value": "` + fmt.Sprintf("%d", price) + `",
 			"value": "RUB",
 		},
-		"expirationDateTime": "` + time.Now().Add(time.Hour*72).Format("2025-12-10T09:02:00+03:00") + `",
-	}`)
+		"expirationDateTime": "` + time.Now().Add(time.Hour*72).Format("2025-12-10T09:02:00+03:00") + `",}`)
 	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, item.ID), bytes.NewBuffer(jsonData))
-
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "error create request",
+		})
+		return
+	}
 	// add authorization header to the req
 	req.Header.Add("Authorization", bearer)
 	req.Header.Add("Content-Type", "application/json")
@@ -190,7 +202,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	if er := json.Unmarshal(body, &raw); er != nil {
 		log.Println("Error while unmarshaling the response:", er)
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
+			"error": "error unmarshal",
 		})
 		return
 	}

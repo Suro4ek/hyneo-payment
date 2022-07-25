@@ -89,7 +89,7 @@ func (h *handler) freekassa(ctx *gin.Context) {
 
 func (h *handler) bill(ctx *gin.Context) {
 	var dto FreeKassaBill
-	if err := ctx.ShouldBindJSON(&dto); err != nil {
+	if err := ctx.ShouldBind(&dto); err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})

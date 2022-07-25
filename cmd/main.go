@@ -10,6 +10,8 @@ import (
 	"hyneo-payment/internal/qiwi"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
+	"net/http"
+	"os"
 
 	"github.com/golang-jwt/jwt/v4"
 
@@ -58,7 +60,10 @@ func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config)
 
 	qiwi_handler := qiwi.NewQiwiHandler(client, log, give)
 	qiwi_handler.Register(r, auth)
-
+	if err := os.Mkdir("images", os.ModePerm); err != nil {
+		log.Error(err)
+	}
+	r.StaticFS("/images", http.Dir("images"))
 	r.Run(":8080")
 }
 

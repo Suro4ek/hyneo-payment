@@ -38,6 +38,7 @@ func NewGetPayHandler(client *mysql.Client, log *logging.Logger, give give.Give)
 
 func (h *handler) Register(r *gin.Engine, auth *gin.RouterGroup) {
 	r.POST("/getpay", h.getpay)
+	r.POST("/getpay/", h.bill)
 }
 
 func (h *handler) getpay(ctx *gin.Context) {
@@ -92,7 +93,7 @@ func (h *handler) getpay(ctx *gin.Context) {
 
 func (h *handler) bill(ctx *gin.Context) {
 	var dto GetPayBill
-	if err := ctx.ShouldBindJSON(&dto); err != nil {
+	if err := ctx.ShouldBind(&dto); err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})

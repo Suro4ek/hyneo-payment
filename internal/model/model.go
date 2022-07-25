@@ -3,17 +3,26 @@ package model
 import "time"
 
 type Method struct {
-	ID       uint `gorm:"primarykey"`
-	Name     string
-	IsActive bool
-	Method   MethodKey `gorm:"foreignKey:methodId"`
+	ID       int       `gorm:"primarykey;column:id"`
+	Name     string    `gorm:"column:name"`
+	Title    string    `gorm:"column:title"`
+	IsActive bool      `gorm:"column:isActive"`
+	Method   MethodKey `gorm:"foreignKey:Methodid"`
+}
+
+func (Method) TableName() string {
+	return "Method"
 }
 
 type MethodKey struct {
-	ID        uint `gorm:"primarykey"`
-	SecretKey string
-	PublicKey string
-	MethodId  int `gorm:"methodId"`
+	ID        int    `gorm:"primarykey;column:id"`
+	SecretKey string `gorm:"column:SECRET_KEY"`
+	PublicKey string `gorm:"column:PUBLIC_KEY"`
+	Methodid  int    `gorm:"column:methodId"`
+}
+
+func (MethodKey) TableName() string {
+	return "MethodKey"
 }
 
 type Order struct {
@@ -24,6 +33,10 @@ type Order struct {
 	DateIssue time.Time
 	ItemId    int `gorm:"itemId"`
 	Method    string
+}
+
+func (Order) TableName() string {
+	return "Order"
 }
 
 type Item struct {
@@ -38,6 +51,10 @@ type Item struct {
 	Active    bool
 }
 
+func (Item) TableName() string {
+	return "Item"
+}
+
 type Server struct {
 	ID       uint `gorm:"primarykey"`
 	Ip       string
@@ -46,10 +63,18 @@ type Server struct {
 	Items    []Item `gorm:"foreignKey:serverId"`
 }
 
+func (Server) TableName() string {
+	return "Server"
+}
+
 type Promo struct {
 	ID       uint `gorm:"primarykey"`
 	Name     string
 	Active   bool
 	Count    int
 	Discount int
+}
+
+func (Promo) TableName() string {
+	return "Promo"
 }
