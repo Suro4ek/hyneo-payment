@@ -79,6 +79,14 @@ func (h *handler) qiwi(ctx *gin.Context) {
 		})
 		return
 	}
+	order.Status = "Оплачен"
+	err = h.client.DB.Save(&order).Error
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
@@ -126,11 +134,18 @@ func (h *handler) bill(ctx *gin.Context) {
 	h.log.Info("item: ", item)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
+	var promo model.Promo
+	if dto.Promo != nil {
+		_ = h.client.DB.Model(&model.Promo{}).Where("name = ?", dto.Promo).First(&promo).Error
+	} else {
+		promo.Discount = 0
+	}
+	price := h.getPrice(dto.Name, item, promo.Discount)
 	order := model.Order{
 		Username:  dto.Name,
 		ItemId:    int(item.ID),
 		Method:    method.Name,
-		Summa:     item.Price,
+		Summa:     price,
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
 	}
@@ -144,7 +159,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	var bearer = "Bearer " + method.Method.SecretKey
 	var jsonData = []byte(`{
 		"amount":{
-			"value": "` + fmt.Sprintf("%d", item.Price) + `",
+			"value": "` + fmt.Sprintf("%d", price) + `",
 			"value": "RUB",
 		},
 		"expirationDateTime": "` + time.Now().Add(time.Hour*72).Format("2025-12-10T09:02:00+03:00") + `",
@@ -181,4 +196,22 @@ func (h *handler) bill(ctx *gin.Context) {
 	}
 	h.log.Info("raw: ", raw)
 	ctx.Redirect(302, raw["payUrl"].(string))
+}
+
+func (h *handler) getPrice(username string, item model.Item, discount int) int {
+	if item.Doplata {
+		var order model.Order
+		err := h.client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
+		if err != nil {
+			return item.Price
+		}
+		price := item.Price - order.Summa
+		if price < 0 {
+			return 0
+		}
+		return item.Price - order.Summa
+	} else if discount != 0 {
+		return item.Price - (item.Price*discount)/100
+	}
+	return item.Price
 }

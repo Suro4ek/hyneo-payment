@@ -44,7 +44,7 @@ func (r *rcon) Give(orderId int) error {
 	if err != nil {
 		return err
 	}
-	order.Status = "success"
+	order.Status = "Выдано"
 	err = r.Client.DB.Save(&order).Error
 	if err != nil {
 		return err

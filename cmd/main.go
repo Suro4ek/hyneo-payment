@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/golang-jwt/jwt/v4"
 	"hyneo-payment/internal/config"
 	freekassa "hyneo-payment/internal/free_kassa"
 	"hyneo-payment/internal/getpay"
@@ -12,6 +11,8 @@ import (
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
 
+	"github.com/golang-jwt/jwt/v4"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,8 +21,8 @@ func main() {
 	log := logging.GetLogger()
 	cfg := config.GetConfig()
 	client := mysql.NewClient(context.TODO(), 5, cfg.MySQL)
-	//token, _ := generateJwtToken(cfg)
-	//fmt.Println(token)
+	token, _ := generateJwtToken(cfg)
+	log.Info(token)
 	RunServer(client, &log, cfg)
 }
 

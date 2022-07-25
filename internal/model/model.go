@@ -28,6 +28,7 @@ type Order struct {
 
 type Item struct {
 	ID        uint `gorm:"primarykey"`
+	Name      string
 	Command   string
 	ServerId  int   `gorm:"serverId"`
 	Order     Order `gorm:"foreignKey:itemId"`
@@ -43,4 +44,12 @@ type Server struct {
 	Port     string
 	Password string
 	Items    []Item `gorm:"foreignKey:serverId"`
+}
+
+type Promo struct {
+	ID       uint `gorm:"primarykey"`
+	Name     string
+	Active   bool
+	Count    int
+	Discount int
 }
