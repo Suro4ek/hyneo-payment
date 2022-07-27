@@ -49,8 +49,8 @@ func (h *handler) getpay(ctx *gin.Context) {
 		})
 		return
 	}
-	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "GetPay").First(&method).Error
+	var method model.MethodKey
+	err := h.client.DB.Model(&model.MethodKey{}).Joins("Method").Where("Method.name = ?", "GetPay").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -76,7 +76,7 @@ func (h *handler) getpay(ctx *gin.Context) {
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	hash := GetMD5Hash(method.Method.PublicKey + ":" + dto.Amount + ":" + dto.Merchant_order_id + ":" + method.Method.SecretKey)
+	hash := GetMD5Hash(method.PublicKey + ":" + dto.Amount + ":" + dto.Merchant_order_id + ":" + method.SecretKey)
 	if hash != dto.SIGN {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -99,8 +99,8 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "Qiwi").First(&method).Error
+	var method model.MethodKey
+	err := h.client.DB.Model(&model.MethodKey{}).Joins("Method").Where("Method.name = ?", "GetPay").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -128,7 +128,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	order := model.Order{
 		Username:  dto.Name,
 		ItemId:    int(item.ID),
-		Method:    method.Name,
+		Method:    method.Method.Name,
 		Summa:     price,
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
@@ -142,8 +142,8 @@ func (h *handler) bill(ctx *gin.Context) {
 	}
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s?secret=%s&wallet=%s&order=%d&resultUrl=%s&backUrl=%s&comment=%s&sum=%d",
 		urlBill,
-		method.Method.SecretKey,
-		method.Method.PublicKey,
+		method.SecretKey,
+		method.PublicKey,
 		order.ID,
 		"http://api.hyneo.ru/getpay/",
 		"https://hyneo.ru/",
@@ -184,7 +184,10 @@ func (h *handler) bill(ctx *gin.Context) {
 		return
 	}
 	h.log.Info("raw: ", raw)
-	ctx.Redirect(302, raw["redirectUrl"].(string))
+	ctx.JSON(200, gin.H{
+		"status": "ok",
+		"payUrl": raw["redirectUrl"].(string),
+	})
 }
 
 func GetMD5Hash(text string) string {

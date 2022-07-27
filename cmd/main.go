@@ -5,7 +5,6 @@ import (
 	"hyneo-payment/internal/config"
 	freekassa "hyneo-payment/internal/free_kassa"
 	"hyneo-payment/internal/getpay"
-	middleware2 "hyneo-payment/internal/middleware"
 	"hyneo-payment/internal/minecraft"
 	"hyneo-payment/internal/qiwi"
 	"hyneo-payment/pkg/logging"
@@ -49,9 +48,9 @@ func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config)
 	trusted = append(trusted, qiwi_trust...)
 	trusted = append(trusted, getpay_trust...)
 	r.SetTrustedProxies(trusted)
-	give := minecraft.NewGive(client)
-	middleware := middleware2.NewMiddleware(config)
-	auth := r.Group("/bill", middleware.Auth())
+	give := minecraft.NewGive(client, log)
+	// middleware := middleware2.NewMiddleware(config)
+	auth := r.Group("/bill")
 	free_kassaHandler := freekassa.NewFreeKassaHandler(client, log, give)
 	free_kassaHandler.Register(r, auth)
 

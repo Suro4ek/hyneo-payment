@@ -3,6 +3,7 @@ package minecraft
 import (
 	"hyneo-payment/internal/give"
 	"hyneo-payment/internal/model"
+	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
 	"strings"
 
@@ -11,27 +12,25 @@ import (
 
 type rcon struct {
 	Client *mysql.Client
+	log    *logging.Logger
 }
 
-func NewGive(client *mysql.Client) give.Give {
+func NewGive(client *mysql.Client, log *logging.Logger) give.Give {
 	return &rcon{
 		Client: client,
+		log:    log,
 	}
 }
 
 func (r *rcon) Give(orderId int) error {
 	var order model.Order
-	err := r.Client.DB.Model(&model.Order{}).Where("id = ?", orderId).First(&order).Error
+	err := r.Client.DB.Model(&model.Order{}).Preload("Item").Where("id = ?", orderId).First(&order).Error
 	if err != nil {
 		return err
 	}
-	var item model.Item
-	err = r.Client.DB.Model(&model.Item{}).Where("id = ?", order.ItemId).First(&item).Error
-	if err != nil {
-		return err
-	}
+	r.log.Info("give ", "order ", order)
 	var server model.Server
-	err = r.Client.DB.Model(&model.Server{}).Where("id = ?", item.ServerId).First(&server).Error
+	err = r.Client.DB.Model(&model.Server{}).Where("id = ?", order.Item.ServerId).First(&server).Error
 	if err != nil {
 		return err
 	}
@@ -40,7 +39,7 @@ func (r *rcon) Give(orderId int) error {
 		return err
 	}
 	defer con.Close()
-	_, err = con.Execute(strings.Replace(item.Command, "{user}", order.Username, -1))
+	_, err = con.Execute(strings.Replace(order.Item.Command, "{user}", order.Username, -1))
 	if err != nil {
 		return err
 	}

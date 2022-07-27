@@ -1,9 +1,9 @@
 package qiwi
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hyneo-payment/internal/give"
@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -56,15 +57,16 @@ func (h *handler) qiwi(ctx *gin.Context) {
 		})
 		return
 	}
-	var dto QiwiBill
+	var dto PaymentUpdate
 	if err := ctx.ShouldBindJSON(&dto); err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})
 		return
 	}
-	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "Qiwi").First(&method).Error
+	fmt.Print("dto ", dto)
+	var method model.MethodKey
+	err := h.client.DB.Model(&model.MethodKey{}).Joins("Method").Where("Method.name = ?", "Qiwi").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -72,7 +74,7 @@ func (h *handler) qiwi(ctx *gin.Context) {
 		return
 	}
 	var order model.Order
-	err = h.client.DB.Model(&model.Order{}).Where("id = ?", dto.BillId).First(&order).Error
+	err = h.client.DB.Model(&model.Order{}).Where("id = ?", dto.Bill.BillId).First(&order).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -89,11 +91,16 @@ func (h *handler) qiwi(ctx *gin.Context) {
 	}
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
-	h.log.Info("dto: ", dto)
-	invoice_parameters := fmt.Sprintf("%s|%s|%s|%s|%s", dto.Amount_currency, dto.Amount_value, dto.BillId, dto.SiteID, dto.Status_value)
-	hash_request := hmac.New(sha256.New, []byte(method.Method.SecretKey))
-	hash_request.Write([]byte(invoice_parameters))
-	if hmac.Equal([]byte(hash), hash_request.Sum(nil)) {
+	invoiceParameters := ""
+	invoiceParameters += dto.Bill.Amount.Currency + "|"
+	invoiceParameters += dto.Bill.Amount.Value + "|"
+	invoiceParameters += dto.Bill.BillId + "|"
+	invoiceParameters += dto.Bill.SiteId + "|"
+	invoiceParameters += dto.Bill.Status.Value
+	hash_request := hmac.New(sha256.New, []byte(method.SecretKey))
+	hash_request.Write([]byte(invoiceParameters))
+	sha := hex.EncodeToString(hash_request.Sum(nil))
+	if sha == hash {
 		go func() {
 			h.Give.Give(int(order.ID))
 		}()
@@ -115,8 +122,8 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "Qiwi").Find(&method).Error
+	var method model.MethodKey
+	err := h.client.DB.Model(&model.MethodKey{}).Joins("Method").Where("Method.name = ?", "Qiwi").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "error get method",
@@ -152,7 +159,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	order := model.Order{
 		Username:  dto.Name,
 		ItemId:    int(item.ID),
-		Method:    method.Name,
+		Method:    method.Method.Name,
 		Summa:     price,
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
@@ -164,14 +171,14 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	var bearer = "Bearer " + method.Method.SecretKey
-	var jsonData = []byte(`{
-		"amount":{
-			"value": "` + fmt.Sprintf("%d", price) + `",
-			"value": "RUB",
-		},
-		"expirationDateTime": "` + time.Now().Add(time.Hour*72).Format("2025-12-10T09:02:00+03:00") + `",}`)
-	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, item.ID), bytes.NewBuffer(jsonData))
+	var bearer = "Bearer " + method.SecretKey
+	expireTime := time.Now().UTC().Add(time.Hour * 72).Format("2006-01-02T15:04:05+00:00")
+	h.log.Info("expireTime: ", expireTime)
+	bill := CreateBill()
+	bill.Amount.Currency = "RUB"
+	bill.Amount.Value = fmt.Sprintf("%d", item.Price)
+	bill.Comment = "Оплата заказа " + item.Name
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, order.ID), strings.NewReader(bill.toJSON()))
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "error create request",
@@ -187,6 +194,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	if err != nil {
 		log.Println("Error on response.\n[ERROR] -", err)
 	}
+	h.log.Info("resp code: ", resp.StatusCode)
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -207,7 +215,10 @@ func (h *handler) bill(ctx *gin.Context) {
 		return
 	}
 	h.log.Info("raw: ", raw)
-	ctx.Redirect(302, raw["payUrl"].(string))
+	ctx.JSON(200, gin.H{
+		"status": "ok",
+		"payUrl": raw["payUrl"].(string),
+	})
 }
 
 func (h *handler) getPrice(username string, item model.Item, discount int) int {
@@ -226,4 +237,37 @@ func (h *handler) getPrice(username string, item model.Item, discount int) int {
 		return item.Price - (item.Price*discount)/100
 	}
 	return item.Price
+}
+
+type Amount struct {
+	Currency string `json:"currency"`
+	Value    string `json:"value"`
+}
+
+// CreateBill
+// Method creates Bill with default parameters
+func CreateBill() *Bill {
+	return &Bill{
+		Amount:             Amount{},
+		ExpirationDateTime: time.Now().UTC().Add(time.Hour * 72).Format("2006-01-02T15:04:05+00:00"),
+	}
+}
+
+type PaymentUpdate struct {
+	Bill    QiwiBill `json:"bill"`
+	Version string   `json:"version"`
+}
+
+type Bill struct {
+	Amount             Amount `json:"amount"`
+	Comment            string `json:"comment"`
+	ExpirationDateTime string `json:"expirationDateTime"`
+}
+
+func (b *Bill) toJSON() string {
+	arr, err := json.Marshal(b)
+	if err != nil {
+		log.Println("Error on toJSON Bill: " + err.Error())
+	}
+	return string(arr)
 }

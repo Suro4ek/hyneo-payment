@@ -1,11 +1,20 @@
 package qiwi
 
 type QiwiBill struct {
-	Amount_currency string `json:"amount.currency"`
-	Amount_value    string `json:"amount.value"`
-	BillId          string `json:"billId"`
-	SiteID          string `json:"siteId"`
-	Status_value    string `json:"status.value"`
+	SiteId             string            `json:"siteId"`
+	BillId             string            `json:"billId"`
+	Amount             Amount            `json:"amount"`
+	Status             Status            `json:"status"`
+	CustomFields       map[string]string `json:"customFields"`
+	Comment            string            `json:"comment"`
+	CreationDateTime   string            `json:"creationDateTime"`
+	ExpirationDateTime string            `json:"expirationDateTime"`
+	PayUrl             string            `json:"payUrl"`
+}
+
+type Status struct {
+	Value           string `json:"value"`
+	ChangedDateTime string `json:"changedDateTime"`
 }
 
 type QIWIPay struct {

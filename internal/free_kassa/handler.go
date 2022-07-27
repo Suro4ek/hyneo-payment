@@ -45,8 +45,8 @@ func (h *handler) freekassa(ctx *gin.Context) {
 		})
 		return
 	}
-	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "FreeKassa").First(&method).Error
+	var method model.MethodKey
+	err := h.client.DB.Model(&model.MethodKey{}).Joins("Method").Where("Method.name = ?", "FreeKassa").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -72,7 +72,7 @@ func (h *handler) freekassa(ctx *gin.Context) {
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	hash := GetMD5Hash(method.Method.PublicKey + ":" + dto.Amount + ":" + method.Method.SecretKey + ":" + dto.Merchant_order_id)
+	hash := GetMD5Hash(method.PublicKey + ":" + dto.Amount + ":" + method.SecretKey + ":" + dto.Merchant_order_id)
 	if hash != dto.SIGN {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -95,8 +95,8 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	var method model.Method
-	err := h.client.DB.Model(&model.Method{}).Preload("MethodKey").Where("name = ?", "FreeKassa").First(&method).Error
+	var method model.MethodKey
+	err := h.client.DB.Model(&model.MethodKey{}).Joins("Method").Where("Method.name = ?", "FreeKassa").Find(&method).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -124,7 +124,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	order := model.Order{
 		Username:  dto.Name,
 		ItemId:    int(item.ID),
-		Method:    method.Name,
+		Method:    method.Method.Name,
 		Summa:     price,
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
@@ -136,9 +136,12 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	hash := GetMD5Hash(method.Method.PublicKey + ":" + fmt.Sprintf("%d", price) + ":" + method.Method.SecretKey + ":" + fmt.Sprintf("%d", order.ID))
+	hash := GetMD5Hash(method.PublicKey + ":" + fmt.Sprintf("%d", price) + ":" + method.SecretKey + ":" + fmt.Sprintf("%d", order.ID))
 	h.log.Info("hash: ", hash)
-	ctx.Redirect(302, fmt.Sprintf("%s?m=%s&oa=%d&o=%d&s=%s", urlBill, method.Method.PublicKey, price, order.ID, hash))
+	ctx.JSON(200, gin.H{
+		"status": "ok",
+		"payUrl": fmt.Sprintf("%s?m=%s&oa=%d&o=%d&s=%s", urlBill, method.PublicKey, price, order.ID, hash),
+	})
 }
 
 func GetMD5Hash(text string) string {
