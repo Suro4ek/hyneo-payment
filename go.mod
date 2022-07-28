@@ -6,6 +6,7 @@ require gorm.io/driver/mysql v1.3.5
 
 require (
 	github.com/BurntSushi/toml v1.1.0 // indirect
+	github.com/Tnze/go-mc v1.18.3-0.20220719154151-5fcac80f8a4e // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.8.1 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
@@ -13,6 +14,7 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/goccy/go-json v0.9.10 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorcon/rcon v1.3.3 // indirect
 	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

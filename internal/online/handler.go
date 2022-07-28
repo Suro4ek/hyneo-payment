@@ -1,24 +1,28 @@
 package online
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/Tnze/go-mc/bot"
+	"github.com/Tnze/go-mc/chat"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"hyneo-payment/internal/config"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
 	"hyneo-payment/pkg/mysql"
 	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/millkhan/mcstatusgo"
-	"gorm.io/gorm"
 )
 
 type handler struct {
 	client *mysql.Client
+	config *config.Config
 }
 
-func NewOnlineHandler(client *mysql.Client) handlers.Handler {
+func NewOnlineHandler(client *mysql.Client, config *config.Config) handlers.Handler {
 	return &handler{
 		client: client,
+		config: config,
 	}
 }
 
@@ -26,19 +30,41 @@ func (h *handler) Register(router *gin.Engine, auth *gin.RouterGroup) {
 	router.GET("/online", h.getOnline)
 }
 
+type status struct {
+	Description chat.Message
+	Players     struct {
+		Max    int
+		Online int
+	}
+	Version struct {
+		Name     string
+		Protocol int
+	}
+	Delay time.Duration
+}
+
 func (h *handler) getOnline(ctx *gin.Context) {
-	server, err := mcstatusgo.Status("mc.hyneo.ru", 25565, 10*time.Second, 5*time.Second)
+	resp, delay, err := bot.PingAndList(h.config.IP + ":25565")
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})
 		return
 	}
+	var s status
+	err = json.Unmarshal(resp, &s)
+	if err != nil {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
+	s.Delay = delay
 	var max model.Online
 	err = h.client.DB.Model(&model.Online{}).First(&max).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			max.Max = server.Players.Online
+			max.Max = s.Players.Max
 			err = h.client.DB.Save(&max).Error
 			if err != nil {
 				ctx.AbortWithStatusJSON(400, gin.H{
@@ -53,8 +79,8 @@ func (h *handler) getOnline(ctx *gin.Context) {
 			return
 		}
 	}
-	if max.Max < server.Players.Online {
-		max.Max = server.Players.Online
+	if max.Max < s.Players.Online {
+		max.Max = s.Players.Online
 		err = h.client.DB.Save(&max).Error
 		if err != nil {
 			ctx.AbortWithStatusJSON(400, gin.H{
@@ -64,8 +90,8 @@ func (h *handler) getOnline(ctx *gin.Context) {
 		}
 	}
 	ctx.JSON(200, gin.H{
-		"online": server.Players.Online,
-		"slots":  server.Players.Max,
+		"online": s.Players.Online,
+		"slots":  s.Players.Max,
 		"max":    max.Max,
 	})
 }

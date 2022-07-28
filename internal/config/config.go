@@ -10,6 +10,7 @@ import (
 type Config struct {
 	MySQL  MySQL  `yaml:"mysql"`
 	SECRET string `yaml:"secret_key"`
+	IP     string `yaml:"ip"`
 }
 
 type MySQL struct {
