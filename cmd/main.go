@@ -6,11 +6,14 @@ import (
 	freekassa "hyneo-payment/internal/free_kassa"
 	"hyneo-payment/internal/getpay"
 	"hyneo-payment/internal/minecraft"
+	"hyneo-payment/internal/model"
+	"hyneo-payment/internal/online"
 	"hyneo-payment/internal/qiwi"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 
@@ -25,6 +28,24 @@ func main() {
 	token, _ := generateJwtToken(cfg)
 	log.Info(token)
 	RunServer(client, &log, cfg)
+	ticker := time.NewTicker(time.Hour * 5)
+	quit := make(chan struct{})
+	client.DB.AutoMigrate(&model.Online{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				deleteOldOrders(client)
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+func deleteOldOrders(client *mysql.Client) {
+	client.DB.Exec("DELETE FROM `Order` WHERE `dateIssue` < NOW() - INTERVAL 3 DAY AND `status`='Ожидает оплаты'")
 }
 
 func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config) {
@@ -59,6 +80,10 @@ func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config)
 
 	qiwi_handler := qiwi.NewQiwiHandler(client, log, give)
 	qiwi_handler.Register(r, auth)
+
+	online_handler := online.NewOnlineHandler(client)
+	online_handler.Register(r, auth)
+
 	if err := os.Mkdir("images", os.ModePerm); err != nil {
 		log.Error(err)
 	}

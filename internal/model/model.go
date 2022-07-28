@@ -83,3 +83,8 @@ type Promo struct {
 func (Promo) TableName() string {
 	return "Promo"
 }
+
+type Online struct {
+	ID  uint `gorm:"primarykey;column:id"`
+	Max int  `gorm:"column:max"`
+}

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	urlBill = "https://www.free-kassa.ru/merchant/cash.php"
+	urlBill = "https://pay.freekassa.ru/"
 )
 
 type handler struct {
@@ -72,7 +72,7 @@ func (h *handler) freekassa(ctx *gin.Context) {
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	hash := GetMD5Hash(method.PublicKey + ":" + dto.Amount + ":" + method.SecretKey + ":" + dto.Merchant_order_id)
+	hash := GetMD5Hash(method.PublicKey + ":" + dto.Amount + ":" + method.SecretKey + ":RUB:" + dto.Merchant_order_id)
 	if hash != dto.SIGN {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -82,9 +82,7 @@ func (h *handler) freekassa(ctx *gin.Context) {
 	go func() {
 		h.Give.Give(int(order.ID))
 	}()
-	ctx.JSON(200, gin.H{
-		"status": "ok",
-	})
+	ctx.String(200, "YES")
 }
 
 func (h *handler) bill(ctx *gin.Context) {
@@ -136,17 +134,18 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	hash := GetMD5Hash(method.PublicKey + ":" + fmt.Sprintf("%d", price) + ":" + method.SecretKey + ":" + fmt.Sprintf("%d", order.ID))
+	hash := GetMD5Hash(method.PublicKey + ":" + fmt.Sprintf("%d", price) + ":" + method.SecretKey + ":RUB:" + fmt.Sprintf("%d", order.ID))
 	h.log.Info("hash: ", hash)
 	ctx.JSON(200, gin.H{
 		"status": "ok",
-		"payUrl": fmt.Sprintf("%s?m=%s&oa=%d&o=%d&s=%s", urlBill, method.PublicKey, price, order.ID, hash),
+		"payUrl": fmt.Sprintf("%s?m=%s&oa=%d&o=%d&s=%s&currency=RUB", urlBill, method.PublicKey, price, order.ID, hash),
 	})
 }
 
 func GetMD5Hash(text string) string {
-	hash := md5.Sum([]byte(text))
-	return hex.EncodeToString(hash[:])
+	hasher := md5.New()
+	hasher.Write([]byte(text))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 func (h *handler) getPrice(username string, item model.Item, discount int) int {
