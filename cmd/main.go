@@ -90,7 +90,7 @@ func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config)
 	qiwiHandler := qiwi.NewQiwiHandler(client, log, orderService)
 	qiwiHandler.Register(r, auth)
 
-	onlineHandler := online.NewOnlineHandler(client)
+	onlineHandler := online.NewOnlineHandler(client, config)
 	onlineHandler.Register(r, auth)
 
 	if err := os.Mkdir("images", os.ModePerm); err != nil {
