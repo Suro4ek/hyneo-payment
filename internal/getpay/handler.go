@@ -5,40 +5,38 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"hyneo-payment/internal/give"
+	"github.com/gin-gonic/gin"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
+	"hyneo-payment/internal/order"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 type handler struct {
-	client *mysql.Client
-	log    *logging.Logger
-	Give   give.Give
+	client  *mysql.Client
+	log     *logging.Logger
+	service order.Service
 }
 
 const (
 	urlBill = "https://getpay.io/api/pay"
 )
 
-func NewGetPayHandler(client *mysql.Client, log *logging.Logger, give give.Give) handlers.Handler {
+func NewGetPayHandler(client *mysql.Client, log *logging.Logger, service order.Service) handlers.Handler {
 	return &handler{
-		client: client,
-		log:    log,
-		Give:   give,
+		client:  client,
+		log:     log,
+		service: service,
 	}
 }
 
 func (h *handler) Register(r *gin.Engine, auth *gin.RouterGroup) {
 	r.POST("/getpay", h.getpay)
-	r.POST("/getpay/", h.bill)
+	auth.POST("/getpay/", h.bill)
 }
 
 func (h *handler) getpay(ctx *gin.Context) {
@@ -84,7 +82,7 @@ func (h *handler) getpay(ctx *gin.Context) {
 		return
 	}
 	go func() {
-		h.Give.Give(int(order.ID))
+		h.service.Give(int(order.ID))
 	}()
 	ctx.JSON(200, gin.H{
 		"status": "ok",
@@ -118,22 +116,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	h.log.Info("item: ", item)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	var promo model.Promo
-	if dto.Promo != nil {
-		_ = h.client.DB.Model(&model.Promo{}).Where("name = ?", dto.Promo).First(&promo).Error
-	} else {
-		promo.Discount = 0
-	}
-	price := h.getPrice(dto.Name, item, promo.Discount)
-	order := model.Order{
-		Username:  dto.Name,
-		ItemId:    int(item.ID),
-		Method:    method.Method.Name,
-		Summa:     price,
-		Status:    "Ожидает оплаты",
-		DateIssue: time.Now(),
-	}
-	err = h.client.DB.Create(&order).Error
+	ord, err := h.service.CreateOrder(dto.Name, item, method.Method.Name, dto.Promo)
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -144,11 +127,11 @@ func (h *handler) bill(ctx *gin.Context) {
 		urlBill,
 		method.SecretKey,
 		method.PublicKey,
-		order.ID,
+		ord.ID,
 		"http://api.hyneo.ru/getpay/",
 		"https://hyneo.ru/",
 		"Оплата заказа "+item.Name,
-		price,
+		ord.Summa,
 	), nil)
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
@@ -193,22 +176,4 @@ func (h *handler) bill(ctx *gin.Context) {
 func GetMD5Hash(text string) string {
 	hash := md5.Sum([]byte(text))
 	return hex.EncodeToString(hash[:])
-}
-
-func (h *handler) getPrice(username string, item model.Item, discount int) int {
-	if item.Doplata {
-		var order model.Order
-		err := h.client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
-		if err != nil {
-			return item.Price
-		}
-		price := item.Price - order.Summa
-		if price < 0 {
-			return 0
-		}
-		return item.Price - order.Summa
-	} else if discount != 0 {
-		return item.Price - (item.Price*discount)/100
-	}
-	return item.Price
 }

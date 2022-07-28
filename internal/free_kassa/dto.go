@@ -1,10 +1,10 @@
 package freekassa
 
 type FreeKassa struct {
-	MerchantID        string `form:"MERCHANT_ID"`
-	Amount            string `form:"AMOUNT"`
-	Merchant_order_id string `form:"MERCHANT_ORDER_ID"`
-	SIGN              string `form:"SIGN"`
+	MerchantID        string `form:"MERCHANT_ID" query:"MERCHANT_ID"`
+	Amount            string `form:"AMOUNT" query:"AMOUNT"`
+	Merchant_order_id string `form:"MERCHANT_ORDER_ID" query:"MERCHANT_ORDER_ID"`
+	SIGN              string `form:"SIGN" query:"SIGN"`
 }
 
 type FreeKassaBill struct {

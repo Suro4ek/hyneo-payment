@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"hyneo-payment/internal/give"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
+	"hyneo-payment/internal/order"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
 	"io/ioutil"
@@ -21,20 +21,20 @@ import (
 )
 
 type handler struct {
-	client *mysql.Client
-	log    *logging.Logger
-	Give   give.Give
+	client  *mysql.Client
+	log     *logging.Logger
+	service order.Service
 }
 
 const (
 	urlBill = "https://api.qiwi.com/partner/bill/v1/bills/"
 )
 
-func NewQiwiHandler(client *mysql.Client, log *logging.Logger, give give.Give) handlers.Handler {
+func NewQiwiHandler(client *mysql.Client, log *logging.Logger, service order.Service) handlers.Handler {
 	return &handler{
-		client: client,
-		log:    log,
-		Give:   give,
+		client:  client,
+		log:     log,
+		service: service,
 	}
 }
 
@@ -102,7 +102,7 @@ func (h *handler) qiwi(ctx *gin.Context) {
 	sha := hex.EncodeToString(hash_request.Sum(nil))
 	if sha == hash {
 		go func() {
-			h.Give.Give(int(order.ID))
+			h.service.Give(int(order.ID))
 		}()
 		ctx.JSON(200, gin.H{
 			"status": "ok",
@@ -149,25 +149,10 @@ func (h *handler) bill(ctx *gin.Context) {
 	h.log.Info("item: ", item)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	var promo model.Promo
-	if dto.Promo != nil {
-		_ = h.client.DB.Model(&model.Promo{}).Where("name = ?", dto.Promo).First(&promo).Error
-	} else {
-		promo.Discount = 0
-	}
-	price := h.getPrice(dto.Name, item, promo.Discount)
-	order := model.Order{
-		Username:  dto.Name,
-		ItemId:    int(item.ID),
-		Method:    method.Method.Name,
-		Summa:     price,
-		Status:    "Ожидает оплаты",
-		DateIssue: time.Now(),
-	}
-	err = h.client.DB.Create(&order).Error
+	ord, err := h.service.CreateOrder(dto.Name, item, method.Method.Name, dto.Promo)
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "error create order",
+			"error": "bad request",
 		})
 		return
 	}
@@ -178,7 +163,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	bill.Amount.Currency = "RUB"
 	bill.Amount.Value = fmt.Sprintf("%d", item.Price)
 	bill.Comment = "Оплата заказа " + item.Name
-	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, order.ID), strings.NewReader(bill.toJSON()))
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, ord.ID), strings.NewReader(bill.toJSON()))
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "error create request",
@@ -219,24 +204,6 @@ func (h *handler) bill(ctx *gin.Context) {
 		"status": "ok",
 		"payUrl": raw["payUrl"].(string),
 	})
-}
-
-func (h *handler) getPrice(username string, item model.Item, discount int) int {
-	if item.Doplata {
-		var order model.Order
-		err := h.client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
-		if err != nil {
-			return item.Price
-		}
-		price := item.Price - order.Summa
-		if price < 0 {
-			return 0
-		}
-		return item.Price - order.Summa
-	} else if discount != 0 {
-		return item.Price - (item.Price*discount)/100
-	}
-	return item.Price
 }
 
 type Amount struct {

@@ -14,11 +14,12 @@ func (Method) TableName() string {
 }
 
 type MethodKey struct {
-	ID        uint   `gorm:"primarykey;column:id"`
-	SecretKey string `gorm:"column:SECRET_KEY"`
-	PublicKey string `gorm:"column:PUBLIC_KEY"`
-	Methodid  int    `gorm:"column:methodId"`
-	Method    Method `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;foreignKey:Methodid"`
+	ID         uint   `gorm:"primarykey;column:id"`
+	SecretKey  string `gorm:"column:SECRET_KEY"`
+	SecretKey2 string `gorm:"column:SECRET_KEY2"`
+	PublicKey  string `gorm:"column:PUBLIC_KEY"`
+	Methodid   int    `gorm:"column:methodId"`
+	Method     Method `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;foreignKey:Methodid"`
 }
 
 func (MethodKey) TableName() string {
@@ -34,6 +35,8 @@ type Order struct {
 	ItemId    int       `gorm:"column:itemId"`
 	Method    string    `gorm:"column:method"`
 	Item      Item      `gorm:"foreignKey:ItemId"`
+	PromoId   *int      `gorm:"column:promoId"`
+	Promo     *Promo    `gorm:"foreignKey:PromoId"`
 }
 
 func (Order) TableName() string {

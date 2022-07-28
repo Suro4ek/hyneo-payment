@@ -22,19 +22,14 @@ func NewGive(client *mysql.Client, log *logging.Logger) give.Give {
 	}
 }
 
-func (r *rcon) Give(orderId int) error {
-	var order model.Order
-	err := r.Client.DB.Model(&model.Order{}).Preload("Item").Where("id = ?", orderId).First(&order).Error
-	if err != nil {
-		return err
-	}
+func (r *rcon) Give(order model.Order) error {
 	r.log.Info("give ", "order ", order)
-	var server model.Server
-	err = r.Client.DB.Model(&model.Server{}).Where("id = ?", order.Item.ServerId).First(&server).Error
+	var item model.Item
+	err := r.Client.DB.Model(&model.Item{}).Preload("Server").Where("id = ?", order.Item.ID).Find(&item).Error
 	if err != nil {
 		return err
 	}
-	con, err := rcon2.Dial(server.Ip+":"+server.Port, server.Password)
+	con, err := rcon2.Dial(item.Server.Ip+":"+item.Server.Port, item.Server.Password)
 	if err != nil {
 		return err
 	}

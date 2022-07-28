@@ -4,14 +4,12 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"hyneo-payment/internal/give"
+	"github.com/gin-gonic/gin"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
+	"hyneo-payment/internal/order"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -19,16 +17,16 @@ const (
 )
 
 type handler struct {
-	client *mysql.Client
-	log    *logging.Logger
-	Give   give.Give
+	client  *mysql.Client
+	log     *logging.Logger
+	service order.Service
 }
 
-func NewFreeKassaHandler(client *mysql.Client, log *logging.Logger, give give.Give) handlers.Handler {
+func NewFreeKassaHandler(client *mysql.Client, log *logging.Logger, service order.Service) handlers.Handler {
 	return &handler{
-		client: client,
-		log:    log,
-		Give:   give,
+		client:  client,
+		log:     log,
+		service: service,
 	}
 }
 
@@ -39,7 +37,7 @@ func (h *handler) Register(router *gin.Engine, auth *gin.RouterGroup) {
 
 func (h *handler) freekassa(ctx *gin.Context) {
 	var dto FreeKassa
-	if err := ctx.ShouldBindQuery(&dto); err != nil {
+	if err := ctx.ShouldBind(&dto); err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})
@@ -61,6 +59,17 @@ func (h *handler) freekassa(ctx *gin.Context) {
 		})
 		return
 	}
+	h.log.Info("order: ", order)
+	h.log.Info("method: ", method)
+	h.log.Info("dto: ", dto)
+	beforeHash := method.PublicKey + ":" + dto.Amount + ":" + method.SecretKey2 + ":" + dto.Merchant_order_id
+	hash := GetMD5Hash(beforeHash)
+	if hash != dto.SIGN {
+		ctx.AbortWithStatusJSON(400, gin.H{
+			"error": "bad request",
+		})
+		return
+	}
 	order.Status = "Оплачен"
 	err = h.client.DB.Save(&order).Error
 	if err != nil {
@@ -69,18 +78,8 @@ func (h *handler) freekassa(ctx *gin.Context) {
 		})
 		return
 	}
-	h.log.Info("order: ", order)
-	h.log.Info("method: ", method)
-	h.log.Info("dto: ", dto)
-	hash := GetMD5Hash(method.PublicKey + ":" + dto.Amount + ":" + method.SecretKey + ":RUB:" + dto.Merchant_order_id)
-	if hash != dto.SIGN {
-		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
-		})
-		return
-	}
 	go func() {
-		h.Give.Give(int(order.ID))
+		h.service.Give(int(order.ID))
 	}()
 	ctx.String(200, "YES")
 }
@@ -112,33 +111,18 @@ func (h *handler) bill(ctx *gin.Context) {
 	h.log.Info("item: ", item)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	var promo model.Promo
-	if dto.Promo != nil {
-		_ = h.client.DB.Model(&model.Promo{}).Where("name = ?", dto.Promo).First(&promo).Error
-	} else {
-		promo.Discount = 0
-	}
-	price := h.getPrice(dto.Name, item, promo.Discount)
-	order := model.Order{
-		Username:  dto.Name,
-		ItemId:    int(item.ID),
-		Method:    method.Method.Name,
-		Summa:     price,
-		Status:    "Ожидает оплаты",
-		DateIssue: time.Now(),
-	}
-	err = h.client.DB.Create(&order).Error
+	ord, err := h.service.CreateOrder(dto.Name, item, method.Method.Name, dto.Promo)
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})
 		return
 	}
-	hash := GetMD5Hash(method.PublicKey + ":" + fmt.Sprintf("%d", price) + ":" + method.SecretKey + ":RUB:" + fmt.Sprintf("%d", order.ID))
-	h.log.Info("hash: ", hash)
+	beforeHash := method.PublicKey + ":" + fmt.Sprintf("%d", ord.Summa) + ":" + method.SecretKey + ":RUB:" + fmt.Sprintf("%d", ord.ID)
+	hash := GetMD5Hash(beforeHash)
 	ctx.JSON(200, gin.H{
 		"status": "ok",
-		"payUrl": fmt.Sprintf("%s?m=%s&oa=%d&o=%d&s=%s&currency=RUB", urlBill, method.PublicKey, price, order.ID, hash),
+		"payUrl": fmt.Sprintf("%s?m=%s&oa=%d&o=%d&s=%s&currency=RUB", urlBill, method.PublicKey, ord.Summa, ord.ID, hash),
 	})
 }
 
@@ -146,22 +130,4 @@ func GetMD5Hash(text string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-func (h *handler) getPrice(username string, item model.Item, discount int) int {
-	if item.Doplata {
-		var order model.Order
-		err := h.client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
-		if err != nil {
-			return item.Price
-		}
-		price := item.Price - order.Summa
-		if price < 0 {
-			return 0
-		}
-		return item.Price - order.Summa
-	} else if discount != 0 {
-		return item.Price - (item.Price*discount)/100
-	}
-	return item.Price
 }

@@ -8,14 +8,18 @@ import (
 )
 
 type Service struct {
-	client *mysql.Client
-	rcon   give.Give
+	Client *mysql.Client
+	Rcon   give.Give
 }
 
-func (s *Service) createOrder(username string, item model.Item, methodname string, promoString string) (model.Order, error) {
+func (s *Service) CreateOrder(username string, item model.Item, methodname string, promoString *string) (model.Order, error) {
 	var promo model.Promo
-	err := s.client.DB.Model(&model.Promo{}).Where("name = ?", promoString).First(&promo).Error
-	if err != nil {
+	if promoString != nil {
+		err := s.Client.DB.Model(&model.Promo{}).Where("name = ?", promoString).First(&promo).Error
+		if err != nil {
+			promo.Discount = 0
+		}
+	} else {
 		promo.Discount = 0
 	}
 	price := s.getPrice(username, item, promo.Discount)
@@ -27,7 +31,7 @@ func (s *Service) createOrder(username string, item model.Item, methodname strin
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
 	}
-	err = s.client.DB.Create(&order).Error
+	err := s.Client.DB.Create(&order).Error
 	if err != nil {
 		return model.Order{}, err
 	}
@@ -36,17 +40,31 @@ func (s *Service) createOrder(username string, item model.Item, methodname strin
 
 func (s *Service) Give(orderid int) {
 	var order model.Order
-	err := s.client.DB.Model(&model.Order{}).Where("id = ?", orderid).First(&order).Error
+	err := s.Client.DB.Model(&model.Order{}).Preload("Item").Where("id = ?", orderid).First(&order).Error
 	if err != nil {
 		return
 	}
-	s.rcon.Give(order)
+	if order.Promo != nil {
+		var promo model.Promo
+		err = s.Client.DB.Model(&model.Promo{}).Where("id = ?", order.Promo.ID).First(&promo).Error
+		if err != nil {
+			return
+		}
+		if promo.Count != -1 {
+			promo.Count--
+			err = s.Client.DB.Save(&promo).Error
+			if err != nil {
+				return
+			}
+		}
+	}
+	s.Rcon.Give(order)
 }
 
 func (s *Service) getPrice(username string, item model.Item, discount int) int {
 	if item.Doplata {
 		var order model.Order
-		err := s.client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
+		err := s.Client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
 		if err != nil {
 			return item.Price
 		}
@@ -54,7 +72,7 @@ func (s *Service) getPrice(username string, item model.Item, discount int) int {
 			return 0
 		}
 		if order.Item.CategoryId != item.CategoryId {
-			return 0
+			return item.Price
 		}
 		price := item.Price - order.Summa
 		if price < 0 {
