@@ -64,7 +64,7 @@ func (h *handler) getOnline(ctx *gin.Context) {
 	err = h.client.DB.Model(&model.Online{}).First(&max).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			max.Max = s.Players.Max
+			max.Max = s.Players.Online
 			err = h.client.DB.Save(&max).Error
 			if err != nil {
 				ctx.AbortWithStatusJSON(400, gin.H{
