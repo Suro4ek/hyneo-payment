@@ -64,21 +64,19 @@ func (s *Service) Give(orderid int) {
 func (s *Service) getPrice(username string, item model.Item, discount int) int {
 	if item.Doplata {
 		var order model.Order
-		err := s.Client.DB.Model(&model.Order{}).Preload("Item").Where("username = ? and doplata = true", username).Last(&order).Error
+		err := s.Client.DB.Model(&model.Order{}).Preload("Item").Where(&model.Order{Username: username,
+			Item: model.Item{CategoryId: item.CategoryId, Doplata: true}}).Last(&order).Error
 		if err != nil {
 			return item.Price
 		}
 		if order.Item.Price > item.Price {
 			return 0
 		}
-		if order.Item.CategoryId != item.CategoryId {
-			return item.Price
-		}
-		price := item.Price - order.Summa
+		price := item.Price - order.Item.Price
 		if price < 0 {
 			return 0
 		}
-		return item.Price - order.Summa
+		return item.Price - order.Item.Price
 	} else if discount != 0 {
 		return item.Price - (item.Price*discount)/100
 	}
