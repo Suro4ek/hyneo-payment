@@ -3,7 +3,7 @@ package model
 import "time"
 
 type Method struct {
-	ID       uint   `gorm:"primarykey;column:id"`
+	ID       uint   `gorm:"primarykey,column:id"`
 	Name     string `gorm:"column:name"`
 	Title    string `gorm:"column:title"`
 	IsActive bool   `gorm:"column:isActive"`
@@ -19,7 +19,7 @@ type MethodKey struct {
 	SecretKey2 string `gorm:"column:SECRET_KEY2"`
 	PublicKey  string `gorm:"column:PUBLIC_KEY"`
 	Methodid   int    `gorm:"column:methodId"`
-	Method     Method `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;foreignKey:Methodid"`
+	Method     Method `gorm:"foreignKey:Methodid"`
 }
 
 func (MethodKey) TableName() string {
@@ -27,7 +27,7 @@ func (MethodKey) TableName() string {
 }
 
 type Order struct {
-	ID        uint      `gorm:"primarykey;column:id"`
+	ID        uint      `gorm:"primarykey;column:Id"`
 	Username  string    `gorm:"column:username"`
 	Status    string    `gorm:"column:status"`
 	Summa     int       `gorm:"column:summa"`
@@ -44,18 +44,20 @@ func (Order) TableName() string {
 }
 
 type Item struct {
-	ID          uint   `gorm:"primarykey;column:id"`
-	Name        string `gorm:"column:name"`
-	Description string `gorm:"column:description"`
-	Price       int    `gorm:"column:price"`
-	FakePrice   int    `gorm:"column:fakePrice"`
-	Doplata     bool   `gorm:"column:doplata"`
-	Active      bool   `gorm:"column:active"`
-	ImageSRC    string `gorm:"column:imageSrc"`
-	CategoryId  int    `gorm:"column:categoryId"`
-	Command     string `gorm:"column:command"`
-	ServerId    int    `gorm:"serverId"`
-	Server      Server `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;foreignKey:ServerId"`
+	ID          uint    `gorm:"primarykey;column:id"`
+	Name        string  `gorm:"column:name"`
+	Description string  `gorm:"column:description"`
+	Price       int     `gorm:"column:price"`
+	FakePrice   int     `gorm:"column:fakePrice"`
+	Doplata     bool    `gorm:"column:doplata"`
+	Active      bool    `gorm:"column:active"`
+	ImageSRC    string  `gorm:"column:imageSrc"`
+	CategoryId  *int    `gorm:"column:categoryId"`
+	Command     string  `gorm:"column:command"`
+	ServerId    *int    `gorm:"column:serverId"`
+	Server      *Server `gorm:"foreignKey:ServerId"`
+	Gradient    string  `gorm:"column:Gradient"`
+	Place       string  `gorm:"column:place"`
 }
 
 func (Item) TableName() string {

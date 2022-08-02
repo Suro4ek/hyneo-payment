@@ -4,12 +4,14 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
 	"hyneo-payment/internal/order"
 	"hyneo-payment/pkg/logging"
 	"hyneo-payment/pkg/mysql"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -51,7 +53,7 @@ func (h *handler) freekassa(ctx *gin.Context) {
 		})
 		return
 	}
-	var order model.Order
+	var order *model.Order
 	err = h.client.DB.Model(&model.Order{}).Where("id = ?", dto.Merchant_order_id).First(&order).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
@@ -70,16 +72,9 @@ func (h *handler) freekassa(ctx *gin.Context) {
 		})
 		return
 	}
-	order.Status = "Оплачен"
-	err = h.client.DB.Save(&order).Error
-	if err != nil {
-		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
-		})
-		return
-	}
 	go func() {
-		h.service.Give(int(order.ID))
+		i, _ := strconv.Atoi(dto.Merchant_order_id)
+		h.service.Give(i)
 	}()
 	ctx.String(200, "YES")
 }

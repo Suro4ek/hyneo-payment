@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
 	"hyneo-payment/internal/order"
@@ -14,6 +13,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type handler struct {
@@ -57,14 +58,6 @@ func (h *handler) getpay(ctx *gin.Context) {
 	}
 	var order model.Order
 	err = h.client.DB.Model(&model.Order{}).Where("id = ?", dto.Merchant_order_id).First(&order).Error
-	if err != nil {
-		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
-		})
-		return
-	}
-	order.Status = "Оплачен"
-	err = h.client.DB.Save(&order).Error
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",

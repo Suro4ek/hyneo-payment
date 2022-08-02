@@ -3,15 +3,15 @@ package online
 import (
 	"encoding/json"
 	"errors"
-	"github.com/Tnze/go-mc/bot"
-	"github.com/Tnze/go-mc/chat"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"hyneo-payment/internal/config"
 	"hyneo-payment/internal/handlers"
 	"hyneo-payment/internal/model"
 	"hyneo-payment/pkg/mysql"
 	"time"
+
+	"github.com/Tnze/go-mc/bot"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type handler struct {
@@ -31,8 +31,7 @@ func (h *handler) Register(router *gin.Engine, auth *gin.RouterGroup) {
 }
 
 type status struct {
-	Description chat.Message
-	Players     struct {
+	Players struct {
 		Max    int
 		Online int
 	}
@@ -81,7 +80,7 @@ func (h *handler) getOnline(ctx *gin.Context) {
 	}
 	if max.Max < s.Players.Online {
 		max.Max = s.Players.Online
-		err = h.client.DB.Save(&max).Error
+		err = h.client.DB.Model(&max).Update("max", s.Players.Online).Error
 		if err != nil {
 			ctx.AbortWithStatusJSON(400, gin.H{
 				"error": "bad request",

@@ -81,14 +81,6 @@ func (h *handler) qiwi(ctx *gin.Context) {
 		})
 		return
 	}
-	order.Status = "Оплачен"
-	err = h.client.DB.Save(&order).Error
-	if err != nil {
-		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
-		})
-		return
-	}
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
 	invoiceParameters := ""
@@ -130,14 +122,6 @@ func (h *handler) bill(ctx *gin.Context) {
 		})
 		return
 	}
-	// var methodKey model.MethodKey
-	// err = h.client.DB.Model(&model.MethodKey{}).Where("methodId = ?", method.ID).First(&methodKey).Error
-	// if err != nil {
-	// 	ctx.AbortWithStatusJSON(400, gin.H{
-	// 		"error": "error get method key",
-	// 	})
-	// 	return
-	// }
 	var item model.Item
 	err = h.client.DB.Model(&model.Item{}).Where("id = ?", dto.Item_id).First(&item).Error
 	if err != nil {
