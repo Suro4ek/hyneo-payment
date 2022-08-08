@@ -40,14 +40,14 @@ func (r *rcon) Give(order model.Order) error {
 		return err
 	}
 	r.log.Info("server ", server)
-	client, err := minecraft.NewClient(server.Ip + ":25567")
+	client, err := minecraft.NewClient(server.Ip + ":" + server.Port)
 	if err != nil {
 		r.log.Error("error ", err)
 	}
 	defer client.Close()
 
 	// Send some commands.
-	if err := client.Authenticate("uSIhRYaaMkHzZijrcOPSJofHJr80udKc"); err != nil {
+	if err := client.Authenticate(server.Password); err != nil {
 		r.log.Error("error ", err)
 	}
 	_, err = client.SendCommand(strings.Replace(item.Command, "{user}", order.Username, -1))
