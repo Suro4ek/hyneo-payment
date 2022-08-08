@@ -28,6 +28,7 @@ func (s *Service) CreateOrder(username string, item model.Item, methodname strin
 		ItemId:    int(item.ID),
 		Method:    methodname,
 		Summa:     price,
+		Promo:     &promo,
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
 	}
@@ -40,7 +41,7 @@ func (s *Service) CreateOrder(username string, item model.Item, methodname strin
 
 func (s *Service) Give(orderid int) {
 	var order model.Order
-	err := s.Client.DB.Model(&model.Order{}).Where("id = ?", orderid).First(&order).Error
+	err := s.Client.DB.Model(&model.Order{}).Preload("Promo").Where("id = ?", orderid).First(&order).Error
 	if err != nil {
 		return
 	}
@@ -49,14 +50,9 @@ func (s *Service) Give(orderid int) {
 		return
 	}
 	if order.Promo != nil {
-		var promo *model.Promo
-		err = s.Client.DB.Model(&model.Promo{}).Where("id = ?", order.Promo.ID).First(&promo).Error
-		if err != nil {
-			return
-		}
-		if promo.Count != -1 {
-			promo.Count--
-			err = s.Client.DB.Model(&promo).Update("count", promo.Count).Error
+		if order.Promo.Count != -1 {
+			order.Promo.Count--
+			err = s.Client.DB.Model(&order.Promo).Update("count", order.Promo.Count).Error
 			if err != nil {
 				return
 			}
