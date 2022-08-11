@@ -7,6 +7,7 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
+// Config is application config
 type Config struct {
 	MySQL  MySQL  `yaml:"mysql"`
 	SECRET string `yaml:"secret_key"`

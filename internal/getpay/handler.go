@@ -37,12 +37,12 @@ func NewGetPayHandler(client *mysql.Client, log *logging.Logger, service order.S
 
 func (h *handler) Register(r *gin.Engine, auth *gin.RouterGroup) {
 	r.POST("/getpay", h.getpay)
-	auth.POST("/getpay/", h.bill)
+	auth.POST("/getpay", h.bill)
 }
 
 func (h *handler) getpay(ctx *gin.Context) {
 	var dto GetPay
-	if err := ctx.ShouldBindQuery(&dto); err != nil {
+	if err := ctx.ShouldBind(&dto); err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
 		})
@@ -128,7 +128,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	), nil)
 	if err != nil {
 		ctx.AbortWithStatusJSON(400, gin.H{
-			"error": "bad request",
+			"error": "not generate request",
 		})
 		return
 	}

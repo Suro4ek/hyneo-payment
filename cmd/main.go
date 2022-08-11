@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"hyneo-payment/internal/config"
 	freekassa "hyneo-payment/internal/free_kassa"
 	"hyneo-payment/internal/getpay"
@@ -18,6 +16,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 func main() {
@@ -45,7 +46,7 @@ func main() {
 }
 
 func deleteOldOrders(client *mysql.Client) {
-	client.DB.Exec("DELETE FROM `Order` WHERE `dateIssue` < NOW() - INTERVAL 3 DAY AND `status`='Ожидает оплаты'")
+	client.DB.Exec("DELETE FROM `Order` WHERE `dateIssue` <= ( CURDATE() - INTERVAL 2 DAY ) AND `status`='Ожидает оплаты';")
 }
 
 func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config) {

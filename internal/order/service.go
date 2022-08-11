@@ -32,6 +32,9 @@ func (s *Service) CreateOrder(username string, item model.Item, methodname strin
 		Status:    "Ожидает оплаты",
 		DateIssue: time.Now(),
 	}
+	if promo.Discount == 0 {
+		order.Promo = nil
+	}
 	err := s.Client.DB.Create(&order).Error
 	if err != nil {
 		return model.Order{}, err
