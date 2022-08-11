@@ -21,7 +21,6 @@ func NewClient(ctx context.Context, maxAttemps int, sc config.MySQL) (client *Cl
 	var pool *gorm.DB
 	var err error
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", sc.User, sc.Password, sc.Host, sc.Port, sc.DB)
-	fmt.Println(dsn)
 	err = utils.DoWithTries(func() error {
 		_, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()

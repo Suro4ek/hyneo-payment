@@ -52,6 +52,7 @@ func deleteOldOrders(client *mysql.Client) {
 func RunServer(client *mysql.Client, log *logging.Logger, config *config.Config) {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
+	r.RemoteIPHeaders = []string{"X-Forwarded-For", "X-Real-IP"}
 	var trusted = make([]string, 0)
 	free_kassa := []string{
 		"136.243.38.147",
