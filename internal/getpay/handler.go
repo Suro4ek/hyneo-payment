@@ -67,7 +67,7 @@ func (h *handler) getpay(ctx *gin.Context) {
 	h.log.Info("order: ", order)
 	h.log.Info("method: ", method)
 	h.log.Info("dto: ", dto)
-	hash := GetMD5Hash(method.PublicKey + ":" + dto.Amount + ":" + dto.Merchant_order_id + ":" + method.SecretKey)
+	hash := GetMD5Hash(dto.MerchantID + ":" + dto.Amount + ":" + dto.Merchant_order_id + ":" + method.SecretKey)
 	if hash != dto.SIGN {
 		ctx.AbortWithStatusJSON(400, gin.H{
 			"error": "bad request",
@@ -121,7 +121,7 @@ func (h *handler) bill(ctx *gin.Context) {
 		method.SecretKey,
 		method.PublicKey,
 		ord.ID,
-		"http://api.hyneo.ru/getpay/",
+		"https://api.hyneo.ru/getpay/",
 		"https://hyneo.ru/",
 		"Оплата заказа "+item.Name,
 		ord.Summa,
