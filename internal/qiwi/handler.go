@@ -145,7 +145,7 @@ func (h *handler) bill(ctx *gin.Context) {
 	h.log.Info("expireTime: ", expireTime)
 	bill := CreateBill()
 	bill.Amount.Currency = "RUB"
-	bill.Amount.Value = fmt.Sprintf("%d", item.Price)
+	bill.Amount.Value = fmt.Sprintf("%d", ord.Summa)
 	bill.Comment = "Оплата заказа " + item.Name
 	req, err := http.NewRequest("PUT", fmt.Sprintf("%s%d", urlBill, ord.ID), strings.NewReader(bill.toJSON()))
 	if err != nil {

@@ -10,16 +10,16 @@ import (
 // Config is application config
 type Config struct {
 	MySQL  MySQL  `yaml:"mysql"`
-	SECRET string `yaml:"secret_key"`
-	IP     string `yaml:"ip"`
+	SECRET string `yaml:"secret_key" env:"SECRET_KEY"`
+	IP     string `yaml:"ip" env:"IP"`
 }
 
 type MySQL struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"pass"`
-	DB       string `yaml:"db"`
+	Host     string `yaml:"host" env:"MYSQL_HOST"`
+	Port     string `yaml:"port" env:"MYSQL_PORT"`
+	User     string `yaml:"user" env:"MYSQL_USER"`
+	Password string `yaml:"pass" env:"MYSQL_PASS"`
+	DB       string `yaml:"db" env:"MYSQL_DB"`
 }
 
 var instance *Config
